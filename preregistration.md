@@ -298,4 +298,27 @@ round an underpowered inconclusive up to a satisfying null.
 > A pre-registration is a plan, not a prison. Every change after the tag is logged here with date and
 > reason. An empty section means none.
 
-_None yet._
+**2026-06-16. A minimum-duration floor added to the cohort (before the holdout read).** Labeling for
+the detector gate surfaced short-form content (vertical video padded into a landscape thumbnail, often
+with blurred mirror side-bars) reaching the single-face set. Short-form cannot be identified by the
+duration field in the study's frozen data: a video that reads long by duration can still carry a
+vertical/short thumbnail, and the upstream orientation classifier's content-type verdict is not carried
+into the frozen store. As a conservative cleanup that errs toward genuine long-form, we add a locked
+`MIN_DURATION_SECONDS = 90` floor (drop single-face videos under 90 seconds), removing ~5% of the
+single-face set, the tail where short-form concentrates. We state plainly what this does and does not
+do: it removes the most-likely-short-form tail; it does NOT claim to catch every short, which the
+frozen store cannot identify. The floor is locked here, before the holdout read, so it is a pre-read
+deviation, not a post-hoc spec search. The identifying set survives it comfortably (1,619 exploration
+channels remain). This matters more for a position study than for the presence/size siblings, because
+a padded-vertical thumbnail has different horizontal-position semantics than a real landscape thumbnail.
+
+**2026-06-16. Position detector gate PASSED (before the holdout read).** The gate was run on a
+150-face hand-marked sample (expanded from an initial 50 after the smaller sample's per-zone miss rate
+was too noisy to characterize). Center-error slope -0.0017 (bound |slope| <= 0.05): PASS, the detector
+has no horizontal position bias. Zone-recall evenness: each zone within 0.05 of the 1.3% overall miss
+rate: PASS. Error-spread (outer vs center thirds): no material edge inflation: PASS. The total
+contamination is ~1.3% (two flagged cases across 150: one undetectable short-form, one detector error
+boxing only an eye), position-unbiased and not zone-concentrated. Full detail in `validation-log.md`.
+No outcome data was touched. The escalation rule's load-bearing checks (center-error bound + zone-recall
+evenness + spread) are all satisfied, so the gate is met even if the holdout comes back
+present-and-meaningful.
