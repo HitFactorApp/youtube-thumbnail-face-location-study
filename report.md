@@ -108,11 +108,18 @@ one-channel-one-vote form. It sharpens the picture without changing the verdict.
    broader "faces sell, and here's how to frame them" advice does not survive a within-channel test at
    scale: presence is slightly negative, size is flat, and side is null.
 
-2. **It is a precise null, not an absence of data.** With ~380 side-varying channels and ~16,600 videos
-   the held-out estimate is tight enough to rule out any left-vs-right effect bigger than about 6% (the
-   widest edge of the two estimators' intervals is +6.0%). The
-   honest response is to stop treating face side as a growth lever and, as always, to A/B test packaging
-   on your own channel, which is the test this study cannot run for you.
+2. **It is a precise null relative to a pre-registered bar, not an absence of data, but read the bound
+   before you read the word "null."** With ~380 side-varying channels and ~16,600 videos the held-out
+   estimate is tight enough to rule out any left-vs-right effect bigger than about 6% (the widest edge of
+   the two estimators' intervals is +6.0%), and both point estimates sit within half a point of zero.
+   "Precise null" here means exactly that and no more: the effect is bounded below the ±10% step we
+   pre-registered as practically meaningful, with a best estimate of zero. It is **not** a claim that the
+   effect is literally 0.000%. The interval's half-width is about ±5%, so this study does **not** rule
+   out a few-percent side effect. That distinction is the bound talking, not the data: "null" and
+   "underpowered" are separated by where we drew the practical line, not by the measurement. For a team
+   that would act on a single-digit view lift, the honest reading is "not shown to matter," not "proven
+   not to matter"; for everyone else, the honest response is to stop treating face side as a growth lever.
+   Either way, A/B test packaging on your own channel, which is the test this study cannot run for you.
 
 3. **There is one loose thread we are honest about.** Center-placed faces may underperform both edges,
    but only in the volume-weighted view, and the typical channel shows no such gap. We flag it as
