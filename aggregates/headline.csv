@@ -1,0 +1,5 @@
+analysis,side,n_channels,n_videos,pooled_pct,pooled_lo,pooled_hi,median_pct,median_lo,median_hi
+headline (left-vs-right),holdout,381,16561,-0.27,-5.38,5.2,0.11,-4.09,6.0
+headline (left-vs-right),exploration,1619,65878,-3.53,-6.69,-0.17,-1.68,-4.15,0.89
+dominant-face fork,holdout,564,25094,1.66,-2.97,6.71,3.36,-0.63,7.94
+floor fork T=4%,holdout,216,9049,3.43,-3.82,11.54,6.84,-0.96,13.99

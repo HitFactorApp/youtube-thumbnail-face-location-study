@@ -1,0 +1,252 @@
+---
+title: "Replicate: Does Where the Face Sits on the Thumbnail Get More Views?"
+subtitle: "A self-contained reproduction of the study's headline from the public de-identified dataset"
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 2
+    code-fold: false
+    fig-width: 7
+    fig-height: 4
+    embed-resources: true
+execute:
+  echo: true
+  warning: false
+---
+
+## What this notebook is
+
+This notebook reproduces the published headline of the study **"Does Where the Face Sits on
+the Thumbnail Get More Views?"** using nothing but the public de-identified dataset shipped
+beside it (`thumbnail_face_location_vpd_deidentified.csv`) and two standard Python libraries.
+There are **no proprietary inputs**: no raw YouTube data, no real video or channel
+identifiers, no face-detection model, no database. The face placement (`zone`,
+`xcenter_frac`) is a *given column* in the released file. This notebook consumes that
+measurement, it does not recompute it.
+
+**What it proves, and what it does not.** It re-derives our *statistics*: a replicator can
+re-run the within-channel zone contrasts, the channel clustering, and the bootstrap, and
+catch a coding or specification error. It does **not** let anyone re-verify the underlying
+face placements or view counts, because the raw thumbnails and identifiers are not in the
+dataset by design (YouTube's API terms forbid republishing them). This is **methods
+reproduction, not measurement verification**: the measurement is defended by the detector
+placement-validation gate described in the methodology, not by this file.
+
+The headline you should reproduce: **within a channel, placing the face on the left versus
+the right moves views by essentially zero** (held-out estimate ≈ −0.3% pooled, +0.1% one
+channel one vote), both intervals inside the ±10% practical bar and straddling zero.
+
+## Setup
+
+```{python}
+from pathlib import Path
+import numpy as np
+import pandas as pd
+
+CSV = Path("thumbnail_face_location_vpd_deidentified.csv")
+df = pd.read_csv(CSV)
+
+# Locked parameters (identical to the pre-registration; see methodology.md).
+MIN_PER_ZONE = 5       # a channel needs >=5 videos in EACH contrasted zone
+BOOTSTRAP_N = 10_000
+SEED = 0
+
+# The headline is the single-face frame: exactly one face clearing the 2% floor.
+single = df[df["single_face"] == 1].copy()
+print(f"faced rows: {len(df):,}   single-face rows: {len(single):,}   "
+      f"channels: {single.channel_hash.nunique():,}")
+single.head(3)
+```
+
+The file already carries only analysis-eligible rows (the view, age, and duration floors
+were applied when it was built). The `single_face == 1` filter selects the headline frame;
+keep all rows instead to reproduce the dominant-face fork.
+
+## The estimator
+
+The headline is a **within-channel left-vs-right contrast** among single-face videos,
+reported two co-equal ways, with a confidence interval from a **whole-channel bootstrap**
+(resample channels, never videos). A result is claimed only when both estimators agree.
+
+1. **Identifying-set restriction.** A within-channel left-vs-right contrast only exists for
+   channels with videos in *both* zones. We keep channels with at least five `left` and five
+   `right` single-face videos. This defines who the number describes.
+2. **Channel fixed effects + age control.** We subtract each channel's own mean from every
+   column (the within-transform), absorbing every stable channel trait, then add `log(age)`
+   because the whole dataset was measured on a single clock, so a video's age is really
+   *when we captured its views*; controlling it removes that measurement-timing artifact.
+3. **Two estimators.** *Pooled* (every video counts) and *one channel one vote* (the median
+   over channels of each channel's own age-adjusted right-minus-left contrast, so a few
+   high-volume channels cannot carry the result).
+4. **Whole-channel bootstrap.** Videos in a channel are not independent, so the resampling
+   unit is the channel, not the video.
+
+```{python}
+def within_demean(x, inv):
+    means = np.bincount(inv, weights=x) / np.bincount(inv)
+    return x - means[inv]
+
+
+def identifying_set(frame, zone_a="left", zone_b="right", k=MIN_PER_ZONE):
+    """Keep channels with >= k videos in BOTH zones; return the a/b rows of those channels."""
+    ch = frame["channel_hash"].to_numpy()
+    z = frame["zone"].to_numpy()
+    uniq, inv = np.unique(ch, return_inverse=True)
+    na = np.bincount(inv, weights=(z == zone_a).astype(float))
+    nb = np.bincount(inv, weights=(z == zone_b).astype(float))
+    keep_ch = (na >= k) & (nb >= k)
+    keep = keep_ch[inv] & np.isin(z, [zone_a, zone_b])
+    return frame.loc[keep]
+
+
+def pooled_contrast(ly, is_b, la, inv):
+    """Within-channel FE contrast of log(views) on the zone-b dummy, age-controlled."""
+    X = np.column_stack([within_demean(is_b, inv), within_demean(la, inv)])
+    y = within_demean(ly, inv)
+    beta, *_ = np.linalg.lstsq(X, y, rcond=None)
+    return beta[0]
+
+
+def median_contrast(ly, is_b, la, inv):
+    """Median over channels of each channel's age-adjusted (mean_b - mean_a)."""
+    ad = within_demean(la, inv)
+    yd = within_demean(ly, inv)
+    age_coef = np.linalg.lstsq(ad.reshape(-1, 1), yd, rcond=None)[0][0]
+    y_adj = ly - age_coef * la
+    sb = np.bincount(inv, weights=y_adj * is_b); nb = np.bincount(inv, weights=is_b)
+    sa = np.bincount(inv, weights=y_adj * (1 - is_b)); na = np.bincount(inv, weights=(1 - is_b))
+    with np.errstate(invalid="ignore", divide="ignore"):
+        per_ch = (sb / nb) - (sa / na)
+    per_ch = per_ch[np.isfinite(per_ch)]
+    return float(np.median(per_ch)) if per_ch.size else np.nan
+
+
+def headline(frame, zone_a="left", zone_b="right", n_boot=BOOTSTRAP_N, seed=SEED):
+    """Return both estimators' (effect%, ci_lo%, ci_hi%) plus n, for one subset."""
+    f = identifying_set(frame, zone_a, zone_b)
+    ch = f["channel_hash"].to_numpy()
+    uniq, inv = np.unique(ch, return_inverse=True)
+    ly = np.log(f["views"].to_numpy(dtype=float))
+    la = np.log(f["age_days"].to_numpy(dtype=float))
+    is_b = (f["zone"].to_numpy() == zone_b).astype(float)
+
+    pooled = pooled_contrast(ly, is_b, la, inv)
+    median = median_contrast(ly, is_b, la, inv)
+
+    k = len(uniq)
+    order = np.argsort(inv, kind="stable")
+    bounds = np.searchsorted(inv[order], np.arange(k + 1))
+    ch_rows = [order[bounds[i]:bounds[i + 1]] for i in range(k)]
+    rng = np.random.default_rng(seed)
+    bp = np.empty(n_boot); bm = np.empty(n_boot)
+    for j in range(n_boot):
+        pick = rng.integers(0, k, k)
+        idx = np.concatenate([ch_rows[p] for p in pick])
+        binv = np.repeat(np.arange(k), [len(ch_rows[p]) for p in pick])
+        bp[j] = pooled_contrast(ly[idx], is_b[idx], la[idx], binv)
+        bm[j] = median_contrast(ly[idx], is_b[idx], la[idx], binv)
+
+    pct = lambda c: 100.0 * (np.exp(c) - 1.0)
+    return {
+        "pooled": (pct(pooled), pct(np.percentile(bp, 2.5)), pct(np.percentile(bp, 97.5))),
+        "median": (pct(median), pct(np.nanpercentile(bm, 2.5)), pct(np.nanpercentile(bm, 97.5))),
+        "n_channels": k, "n_videos": len(f),
+    }
+```
+
+## Headline (the held-out result)
+
+The published headline comes from the held-out 20% of channels (`holdout == 1`), the slice
+the analysis never used while choosing the specification. The exploration set
+(`holdout == 0`) is the confirming companion.
+
+```{python}
+hold = single[single["holdout"] == 1]
+expl = single[single["holdout"] == 0]
+
+for name, frame in [("HOLDOUT (headline)", hold), ("exploration", expl)]:
+    r = headline(frame)
+    p, plo, phi = r["pooled"]; m, mlo, mhi = r["median"]
+    print(f"{name:20}  left-vs-right on views   "
+          f"pooled {p:+.1f}% ({plo:+.1f}..{phi:+.1f})   "
+          f"one-vote {m:+.1f}% ({mlo:+.1f}..{mhi:+.1f})   "
+          f"n_ch={r['n_channels']:,}  n_vid={r['n_videos']:,}")
+```
+
+You should see the holdout land at roughly **−0.3% pooled / +0.1% one-vote**, over **381
+channels / 16,561 videos**. Both intervals lie inside ±10% and include zero: a precise null,
+not "we couldn't tell." The two estimators landing a few tenths of a point apart on opposite
+sides of zero is what two noisy estimates of a true zero look like, not a disagreement.
+
+## Why "left looks higher" is a weighting artifact, not a left-side benefit
+
+Lay all three zones side by side, each measured against the typical placement on the same
+channel. Counting **every video equally** (pooled), left sits a bit above average and center
+below. Counting **each channel once** (one vote), all three flatten to within half a point.
+The level chart's apparent left edge is the heavier channels pulling the pooled average; it
+does not survive giving every channel an equal say, which is exactly why the left-vs-right
+*contrast* above is null.
+
+```{python}
+def zone_levels(frame, estimator, n_boot=2000, seed=SEED):
+    """Each zone's deviation from the channel mean of age-adjusted log-views, two ways.
+    A within-channel design has no absolute baseline, only differences, so each zone is
+    reported relative to the average of the three on channels that vary their placement."""
+    # restrict to channels spanning >=2 zones (a level needs within-channel variation)
+    ch = frame["channel_hash"].to_numpy(); z = frame["zone"].to_numpy()
+    uniq, inv = np.unique(ch, return_inverse=True)
+    nz = np.array([len(set(z[inv == i])) for i in range(len(uniq))])
+    keep = (nz >= 2)[inv]
+    f = frame.loc[keep]
+    ch = f["channel_hash"].to_numpy(); z = f["zone"].to_numpy()
+    uniq, inv = np.unique(ch, return_inverse=True)
+    ly = np.log(f["views"].to_numpy(float)); la = np.log(f["age_days"].to_numpy(float))
+    ad = within_demean(la, inv); yd = within_demean(ly, inv)
+    age_coef = np.linalg.lstsq(ad.reshape(-1, 1), yd, rcond=None)[0][0]
+    y_adj = ly - age_coef * la
+
+    def levels(ly_adj, zz, ii, weighted):
+        out = {}
+        # channel-demean the adjusted outcome, then average per zone
+        dm = within_demean(ly_adj, ii)
+        for name in ("left", "center", "right"):
+            sel = zz == name
+            if weighted:
+                out[name] = dm[sel].mean()
+            else:
+                # one channel one vote: per-channel zone mean, then average over channels
+                s = np.bincount(ii, weights=dm * sel); n = np.bincount(ii, weights=sel.astype(float))
+                with np.errstate(invalid="ignore", divide="ignore"):
+                    per = s / n
+                out[name] = np.nanmean(per[np.isfinite(per)])
+        return out
+
+    base = levels(y_adj, z, inv, weighted=(estimator == "pooled"))
+    return {k: 100.0 * (np.exp(v) - 1.0) for k, v in base.items()}, len(uniq)
+
+for est in ("pooled", "median"):
+    lv, nch = zone_levels(hold, est)
+    print(f"{est:7} (one-vote)" if est == "median" else f"{est:7} (every video)",
+          f"  left {lv['left']:+.1f}%   center {lv['center']:+.1f}%   right {lv['right']:+.1f}%   "
+          f"n_ch={nch:,}")
+```
+
+Read the two lines together. Pooled shows the spread the level chart draws; one-vote erases
+it. The study claims a result only when both ways of counting agree, so it claims **none** of
+the level differences, not the center dip and not the left edge. The honest summary is: which
+side the face is on does not move views.
+
+## Caveats (carried from the methodology)
+
+- **Observational, not causal.** Where a face sits is a creator's choice bundled with others
+  (framing, topic, title) this design cannot fully separate. Read it as "associated with,"
+  never "causes."
+- **Methods reproduction only.** You can re-run the statistics; you cannot re-verify the face
+  placements or view counts from this file (raw data is not republished, by ToS).
+- **Sampling frame.** English-language business/creator-economy channels that vary which side
+  they place the face: not a random sample of YouTube.
+- **A conditional estimand.** Restricting to single-face videos conditions on two creator
+  choices (use a face; use exactly one); the dominant-face fork (keep all rows) bounds that.
+
+See `methodology.md` and `README.md` for the full method and the dataset's column definitions.

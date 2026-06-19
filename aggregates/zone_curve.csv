@@ -1,0 +1,4 @@
+contrast,n_channels,n_videos,pooled_pct,pooled_lo,pooled_hi,median_pct,median_lo,median_hi
+left vs right,381,16561,-0.27,-5.38,5.2,0.11,-4.09,6.0
+left vs center,360,15469,-15.7,-26.87,-5.7,-3.66,-8.24,5.37
+center vs right,480,20517,11.49,3.33,20.88,3.01,-2.48,9.62
