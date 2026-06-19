@@ -1,4 +1,4 @@
-zone,pct_vs_mean,ci_lo,ci_hi,n_videos
-left,3.96,0.45,8.25,8310
-center,-5.74,-9.98,-2.21,12622
-right,2.05,-0.3,4.49,12568
+zone,pooled_pct_vs_mean,pooled_lo,pooled_hi,onevote_pct_vs_mean,n_videos
+left,4.48,0.47,9.66,0.1,8310
+center,-5.27,-9.29,-2.03,-0.93,12622
+right,2.57,0.25,5.06,2.58,12568

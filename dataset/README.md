@@ -21,7 +21,7 @@ placement pass, with the locked view, age, and duration filters applied).
 | `xcenter_frac` | The face's bounding-box horizontal center as a fraction of frame width (0 = left edge, 1 = right edge). The raw predictor `zone` is binned from. |
 | `single_face` | 1 if exactly one face clears the 2% floor (the headline frame, located by that face); 0 if two or more faces clear it (located by the largest face). Filter to `single_face = 1` to reproduce the headline; keep all rows to reproduce the dominant-face fork. |
 | `n_faces` | Number of faces clearing the 2% size floor. |
-| `largest_face_area_pct` | The largest face's bounding-box area, as a percent of the thumbnail. Lets you re-run the size-floor fork (2% vs 4%). |
+| `largest_face_area_pct` | The largest face's bounding-box area, as a percent of the thumbnail. Lets you restrict to videos whose largest face clears a higher floor (e.g. 4%). Note: this is a weaker restriction than the published 4% size-floor fork, which re-decides which videos are *single-face* at the higher floor; that needs every face's area, and only the largest is released here. |
 | `views` | Total views at the single capture time. |
 | `age_days` | Days between publish and the view capture. |
 | `publish_month` | Publish year-month (`YYYY-MM`). |

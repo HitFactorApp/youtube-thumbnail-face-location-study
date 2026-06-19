@@ -182,60 +182,69 @@ sides of zero is what two noisy estimates of a true zero look like, not a disagr
 ## Why "left looks higher" is a weighting artifact, not a left-side benefit
 
 Lay all three zones side by side, each measured against the typical placement on the same
-channel. Counting **every video equally** (pooled), left sits a bit above average and center
-below. Counting **each channel once** (one vote), all three flatten to within half a point.
-The level chart's apparent left edge is the heavier channels pulling the pooled average; it
-does not survive giving every channel an equal say, which is exactly why the left-vs-right
-*contrast* above is null.
+channel. Counting **every video equally** (pooled), left sits above average and center below.
+Counting **each channel once** (one vote), the spread does not hold its shape: left flattens
+toward zero, right is no longer near zero, and center is far less low, so the clean
+left-high / center-low pattern the pooled bars draw is not what one channel one vote sees.
+The two counting methods disagree about the zone pattern, which is exactly why the headline
+left-vs-right *contrast* is null and why the study claims none of the level differences.
 
 ```{python}
-def zone_levels(frame, estimator, n_boot=2000, seed=SEED):
+def level_channel_set(frame, k=MIN_PER_ZONE):
+    """The published level set: keep a (channel, zone) row if that channel has >= k
+    videos in that zone AND >= k in at least one OTHER zone (so the zone participates
+    in some identifiable pairwise contrast). This is the union of the three pairwise
+    identifying sets, the same channels the level chart on the page is drawn from."""
+    ch = frame["channel_hash"].to_numpy(); z = frame["zone"].to_numpy()
+    counts = {}
+    for c, zz in zip(ch, z):
+        counts.setdefault(c, {"left": 0, "center": 0, "right": 0})[zz] += 1
+    keep = np.zeros(len(frame), bool)
+    for i, (c, zz) in enumerate(zip(ch, z)):
+        cnt = counts[c]
+        if cnt[zz] >= k and any(cnt[o] >= k for o in ("left", "center", "right") if o != zz):
+            keep[i] = True
+    return frame.loc[keep]
+
+
+def zone_levels(frame, estimator):
     """Each zone's deviation from the channel mean of age-adjusted log-views, two ways.
     A within-channel design has no absolute baseline, only differences, so each zone is
-    reported relative to the average of the three on channels that vary their placement."""
-    # restrict to channels spanning >=2 zones (a level needs within-channel variation)
-    ch = frame["channel_hash"].to_numpy(); z = frame["zone"].to_numpy()
-    uniq, inv = np.unique(ch, return_inverse=True)
-    nz = np.array([len(set(z[inv == i])) for i in range(len(uniq))])
-    keep = (nz >= 2)[inv]
-    f = frame.loc[keep]
+    reported relative to the average of the three on the level channel set above."""
+    f = level_channel_set(frame)
     ch = f["channel_hash"].to_numpy(); z = f["zone"].to_numpy()
     uniq, inv = np.unique(ch, return_inverse=True)
     ly = np.log(f["views"].to_numpy(float)); la = np.log(f["age_days"].to_numpy(float))
     ad = within_demean(la, inv); yd = within_demean(ly, inv)
     age_coef = np.linalg.lstsq(ad.reshape(-1, 1), yd, rcond=None)[0][0]
-    y_adj = ly - age_coef * la
-
-    def levels(ly_adj, zz, ii, weighted):
-        out = {}
-        # channel-demean the adjusted outcome, then average per zone
-        dm = within_demean(ly_adj, ii)
-        for name in ("left", "center", "right"):
-            sel = zz == name
-            if weighted:
-                out[name] = dm[sel].mean()
-            else:
-                # one channel one vote: per-channel zone mean, then average over channels
-                s = np.bincount(ii, weights=dm * sel); n = np.bincount(ii, weights=sel.astype(float))
-                with np.errstate(invalid="ignore", divide="ignore"):
-                    per = s / n
-                out[name] = np.nanmean(per[np.isfinite(per)])
-        return out
-
-    base = levels(y_adj, z, inv, weighted=(estimator == "pooled"))
-    return {k: 100.0 * (np.exp(v) - 1.0) for k, v in base.items()}, len(uniq)
+    dm = within_demean(ly - age_coef * la, inv)
+    out = {}
+    for name in ("left", "center", "right"):
+        sel = z == name
+        if estimator == "pooled":
+            out[name] = dm[sel].mean()
+        else:  # one channel one vote
+            s = np.bincount(inv, weights=dm * sel); n = np.bincount(inv, weights=sel.astype(float))
+            with np.errstate(invalid="ignore", divide="ignore"):
+                per = s / n
+            out[name] = np.nanmean(per[np.isfinite(per)])
+    return {k: 100.0 * (np.exp(v) - 1.0) for k, v in out.items()}, len(uniq)
 
 for est in ("pooled", "median"):
     lv, nch = zone_levels(hold, est)
-    print(f"{est:7} (one-vote)" if est == "median" else f"{est:7} (every video)",
-          f"  left {lv['left']:+.1f}%   center {lv['center']:+.1f}%   right {lv['right']:+.1f}%   "
-          f"n_ch={nch:,}")
+    tag = "one-vote " if est == "median" else "every-video"
+    print(f"{tag}  left {lv['left']:+.1f}%   center {lv['center']:+.1f}%   "
+          f"right {lv['right']:+.1f}%   n_ch={nch:,}")
 ```
 
-Read the two lines together. Pooled shows the spread the level chart draws; one-vote erases
-it. The study claims a result only when both ways of counting agree, so it claims **none** of
-the level differences, not the center dip and not the left edge. The honest summary is: which
-side the face is on does not move views.
+Read the two lines together. Every-video weighting shows the spread the level chart draws
+(left up, center down). Give each channel one vote and the spread does not hold its shape:
+left flattens, right is no longer near zero, center is far less low. The two counting methods
+disagree about the zone pattern, and the study's locked rule claims a result only when both
+agree, so it claims **none** of the level differences, not the center dip and not the left
+edge. The decisive, baseline-free version is the pairwise one-vote contrasts above, which
+cross zero for both center-involving pairs. The honest summary is: which side the face is on
+does not move views.
 
 ## Caveats (carried from the methodology)
 

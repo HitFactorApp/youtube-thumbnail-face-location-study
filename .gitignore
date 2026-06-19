@@ -1,0 +1,11 @@
+# Editor / OS cruft, never publish
+.obsidian/
+.DS_Store
+*.swp
+
+# Raw / private data must NEVER land in this public repo.
+# Only de-identified, hashed datasets and aggregate tables are allowed here.
+*.tsv
+*.parquet
+/raw/
+/private/

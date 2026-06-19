@@ -58,16 +58,19 @@ never touched while building the analysis. The full plan is in
 
 3. **A zone spread appears, but only in the volume-weighted view, so we claim none of it.**
    Placing all three zones side by side, relative to the typical placement on the same channel and
-   counting every video equally, the pooled estimator shows a spread: left at +4.0% (interval excluding
-   zero), center at −5.7% (excluding zero), right at +2.1% (crossing zero), so left up, center down,
-   with even a small left-over-right edge. The one-channel-one-vote estimator does **not** reproduce any
-   of it: left, center, and right all land within half a point of each other (−0.3% / −0.3% / +0.4%).
-   Under our locked rule that a result is claimed only when both estimators agree, none of this is a
-   finding, not the center dip and not the left edge. It is reported as unresolved shape. This is also
-   why the left-vs-right headline is null: the apparent edge is a weighting artifact the one-vote count
-   erases. See the next section. (This level view is computed on the broader set of channels that span
-   at least two zones, 717 channels, so its center gap is smaller than the −15.7% pairwise left-vs-center
-   contrast below, which uses only the channels that vary across that one pair.)
+   counting every video equally, the pooled estimator shows a spread: left at +4.5% (interval excluding
+   zero), center at −5.3% (excluding zero), right at +2.6% (excluding zero), so left up, center down.
+   Give each channel one vote instead, and that spread does not
+   hold its shape: left moves to about +0.1%, right to about +2.6%, center to about −0.9%, no longer the
+   clean left-high / center-low pattern. The decisive test is the pairwise contrasts, which need no
+   baseline: left-vs-center is −15.7% volume-weighted but −3.7% one-vote with the one-vote interval
+   crossing zero (−8.2% to +5.4%), and center-vs-right is +11.5% versus +3.0% one-vote, again crossing
+   zero. Under our locked rule that a result is claimed only when both estimators agree, none of this is
+   a finding, not the center dip and not the left edge; it is reported as unresolved shape. This is also
+   why the left-vs-right headline is null: it is the one contrast where the two estimators agree. (The
+   level view is computed on the channels that span at least two zones, 717 of them, so its center gap is
+   smaller than the −15.7% pairwise left-vs-center contrast, which uses only the channels that vary
+   across that one pair.)
 
 ## The shape guard fired, and the center dip is reported, not claimed
 
@@ -86,7 +89,7 @@ typical channel.
 
 We checked which it was. Removing one channel at a time from the left-vs-center contrast, no single
 channel exceeds 3.3% of the videos, and dropping the three most influential channels moves the contrast
-only from −15.7% to −8.4%, still far from the one-vote estimator's −3.7%. So this is **not** a few
+only from −15.7% to −8.0%, still far from the one-vote estimator's −3.7%. So this is **not** a few
 outlier channels. It is a broad weighting difference: the video-count distribution is heavy-tailed
 (typical channel 28 single-face videos, largest 506), and higher-volume channels show a stronger
 center-vs-edge gap than the typical channel does. The volume-weighted view sees it; one-channel-one-vote

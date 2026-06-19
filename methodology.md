@@ -83,7 +83,8 @@ side drop out, so the headline describes side-varying channels (we report that s
 result only when both agree in sign and rough size:
 
 - the **median of per-channel contrasts** (one channel, one vote; immune to a few high-volume
-  channels), and
+  channels), which removes age with a single common within-channel age slope, not a per-channel one,
+  before differencing each channel's zone means, and
 - the **pooled fixed-effects contrast** (video-count weighted).
 
 This was fixed before seeing the numbers, not chosen after. The two estimators answering the same
